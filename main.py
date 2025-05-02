@@ -106,6 +106,7 @@ def get_restaurants_for_deletion():
 
 # Start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    logger.info(f"User {update.effective_user.id} started the bot")
     await update.message.reply_text(
         "Assalomu alaykum! Restoranlar botiga xush kelibsiz.\n\n"
         "Bu botdan foydalanib siz restoranlar haqida ma'lumot olishingiz mumkin. "
@@ -119,6 +120,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 # Admin command handler
 async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.effective_user.id
+    logger.info(f"User {user_id} called /admin")
     
     if is_admin(user_id):
         await update.message.reply_text(
@@ -138,8 +140,10 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def handle_admin_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.effective_user.id
     text = update.message.text
+    logger.info(f"Admin choice by user {user_id}: {text}")
     
     if not is_admin(user_id):
+        logger.warning(f"Non-admin user {user_id} tried to access admin panel")
         await update.message.reply_text("Sizda admin huquqlari yo'q.")
         return ConversationHandler.END
     
@@ -205,11 +209,17 @@ async def handle_admin_choice(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         return MAIN
     
+    logger.info(f"Unrecognized admin choice by user {user_id}: {text}")
+    await update.message.reply_text(
+        "Iltimos, quyidagi tugmalardan birini bosing:",
+        reply_markup=get_admin_keyboard()
+    )
     return MAIN
 
 # Handle adding restaurant - name
 async def add_restaurant_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
+    logger.info(f"Adding restaurant name by user {update.effective_user.id}: {text}")
     
     if text == "🔙 Orqaga qaytish":
         await update.message.reply_text(
@@ -235,6 +245,7 @@ async def add_restaurant_name(update: Update, context: ContextTypes.DEFAULT_TYPE
 # Handle adding restaurant - description
 async def add_restaurant_description(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
+    logger.info(f"Adding restaurant description by user {update.effective_user.id}: {text}")
     
     if text == "🔙 Orqaga qaytish":
         await update.message.reply_text(
@@ -260,6 +271,7 @@ async def add_restaurant_description(update: Update, context: ContextTypes.DEFAU
 # Handle adding restaurant - address
 async def add_restaurant_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
+    logger.info(f"Adding restaurant address by user {update.effective_user.id}: {text}")
     
     if text == "🔙 Orqaga qaytish":
         await update.message.reply_text(
@@ -286,21 +298,23 @@ async def add_restaurant_address(update: Update, context: ContextTypes.DEFAULT_T
 
 # Handle adding restaurant - location
 async def add_restaurant_location(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    # Check if user wants to go back
+    user_id = update.effective_user.id
+    logger.info(f"Adding restaurant location by user {user_id}")
+    
     if update.message.text == "🔙 Orqaga qaytish":
+        logger.info(f"User {user_id} cancelled adding restaurant")
         await update.message.reply_text(
             "Restoranni qo'shish bekor qilindi.",
             reply_markup=get_admin_keyboard()
         )
         return MAIN
     
-    # Check if user wants to skip location
     if update.message.text == "⏩ O'tkazib yuborish":
+        logger.info(f"User {user_id} skipped adding location")
         # Save restaurant to database without location
         conn = sqlite3.connect('restaurants.db')
         cursor = conn.cursor()
         
-        # Default description and address if not provided
         description = context.user_data.get('restaurant_description', '')
         address = context.user_data.get('restaurant_address', '')
         
@@ -322,20 +336,16 @@ async def add_restaurant_location(update: Update, context: ContextTypes.DEFAULT_
             reply_markup=get_admin_keyboard()
         )
         
-        # Clear user data
         context.user_data.clear()
-        
         return MAIN
     
-    # Process location if provided
     if update.message.location:
         location = update.message.location
+        logger.info(f"User {user_id} provided location: {location.latitude}, {location.longitude}")
         
-        # Save restaurant to database
         conn = sqlite3.connect('restaurants.db')
         cursor = conn.cursor()
         
-        # Default description and address if not provided
         description = context.user_data.get('restaurant_description', '')
         address = context.user_data.get('restaurant_address', '')
         
@@ -357,12 +367,10 @@ async def add_restaurant_location(update: Update, context: ContextTypes.DEFAULT_
             reply_markup=get_admin_keyboard()
         )
         
-        # Clear user data
         context.user_data.clear()
-        
         return MAIN
     
-    # If we get here, something went wrong
+    logger.warning(f"Invalid input in ADDING_LOCATION by user {user_id}")
     await update.message.reply_text(
         "Noto'g'ri ma'lumot kiritildi. Iltimos, lokatsiya yuboring yoki tugmalardan birini bosing.",
         reply_markup=ReplyKeyboardMarkup([
@@ -378,14 +386,13 @@ async def add_restaurant_location(update: Update, context: ContextTypes.DEFAULT_
 async def edit_restaurant_select(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
+    logger.info(f"User {query.from_user.id} selecting restaurant to edit: {query.data}")
     
-    # Extract restaurant ID from callback data
     data = query.data.split("_")
     if len(data) == 2 and data[0] == "edit":
         restaurant_id = int(data[1])
         context.user_data['editing_restaurant_id'] = restaurant_id
         
-        # Get restaurant info
         conn = sqlite3.connect('restaurants.db')
         cursor = conn.cursor()
         cursor.execute("SELECT name, description, address FROM restaurants WHERE id = ?", (restaurant_id,))
@@ -414,6 +421,7 @@ async def edit_restaurant_select(update: Update, context: ContextTypes.DEFAULT_T
             
             return EDITING_SELECT
     
+    logger.warning(f"Invalid edit selection by user {query.from_user.id}: {query.data}")
     await query.edit_message_text("Xatolik yuz berdi. Qaytadan urinib ko'ring.")
     return MAIN
 
@@ -421,11 +429,11 @@ async def edit_restaurant_select(update: Update, context: ContextTypes.DEFAULT_T
 async def edit_restaurant_field(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
+    logger.info(f"User {query.from_user.id} editing field: {query.data}")
     
     action = query.data.split("_")[1]
     
     if action == "name":
-        # Add back button
         keyboard = [
             [KeyboardButton("🔙 Orqaga qaytish")]
         ]
@@ -439,7 +447,6 @@ async def edit_restaurant_field(update: Update, context: ContextTypes.DEFAULT_TY
         return EDITING_NAME
     
     elif action == "description":
-        # Add back button
         keyboard = [
             [KeyboardButton("🔙 Orqaga qaytish")]
         ]
@@ -453,7 +460,6 @@ async def edit_restaurant_field(update: Update, context: ContextTypes.DEFAULT_TY
         return EDITING_DESCRIPTION
     
     elif action == "address":
-        # Add back button
         keyboard = [
             [KeyboardButton("🔙 Orqaga qaytish")]
         ]
@@ -467,7 +473,6 @@ async def edit_restaurant_field(update: Update, context: ContextTypes.DEFAULT_TY
         return EDITING_ADDRESS
     
     elif action == "location":
-        # Add back button
         keyboard = [
             [KeyboardButton("📍 Lokatsiya yuborish", request_location=True)],
             [KeyboardButton("⏩ O'tkazib yuborish")],
@@ -481,13 +486,14 @@ async def edit_restaurant_field(update: Update, context: ContextTypes.DEFAULT_TY
         )
         return EDITING_LOCATION
     
+    logger.warning(f"Invalid edit field by user {query.from_user.id}: {action}")
     return MAIN
 
 # Handle editing restaurant - name
 async def edit_restaurant_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
+    logger.info(f"Editing restaurant name by user {update.effective_user.id}: {text}")
     
-    # Check if going back
     if text == "🔙 Orqaga qaytish":
         await update.message.reply_text(
             "Tahrirlash bekor qilindi.",
@@ -495,7 +501,6 @@ async def edit_restaurant_name(update: Update, context: ContextTypes.DEFAULT_TYP
         )
         return MAIN
     
-    # Update restaurant name
     restaurant_id = context.user_data['editing_restaurant_id']
     
     conn = sqlite3.connect('restaurants.db')
@@ -514,8 +519,8 @@ async def edit_restaurant_name(update: Update, context: ContextTypes.DEFAULT_TYP
 # Handle editing restaurant - description
 async def edit_restaurant_description(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
+    logger.info(f"Editing restaurant description by user {update.effective_user.id}: {text}")
     
-    # Check if going back
     if text == "🔙 Orqaga qaytish":
         await update.message.reply_text(
             "Tahrirlash bekor qilindi.",
@@ -523,7 +528,6 @@ async def edit_restaurant_description(update: Update, context: ContextTypes.DEFA
         )
         return MAIN
     
-    # Update restaurant description
     restaurant_id = context.user_data['editing_restaurant_id']
     
     conn = sqlite3.connect('restaurants.db')
@@ -542,8 +546,8 @@ async def edit_restaurant_description(update: Update, context: ContextTypes.DEFA
 # Handle editing restaurant - address
 async def edit_restaurant_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
+    logger.info(f"Editing restaurant address by user {update.effective_user.id}: {text}")
     
-    # Check if going back
     if text == "🔙 Orqaga qaytish":
         await update.message.reply_text(
             "Tahrirlash bekor qilindi.",
@@ -551,7 +555,6 @@ async def edit_restaurant_address(update: Update, context: ContextTypes.DEFAULT_
         )
         return MAIN
     
-    # Update restaurant address
     restaurant_id = context.user_data['editing_restaurant_id']
     
     conn = sqlite3.connect('restaurants.db')
@@ -569,27 +572,29 @@ async def edit_restaurant_address(update: Update, context: ContextTypes.DEFAULT_
 
 # Handle editing restaurant - location
 async def edit_restaurant_location(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user_id = update.effective_user.id
     restaurant_id = context.user_data['editing_restaurant_id']
+    logger.info(f"Editing restaurant location by user {user_id} for restaurant {restaurant_id}")
     
-    # Check if going back
     if update.message.text == "🔙 Orqaga qaytish":
+        logger.info(f"User {user_id} cancelled editing location")
         await update.message.reply_text(
             "Tahrirlash bekor qilindi.",
             reply_markup=get_admin_keyboard()
         )
         return MAIN
     
-    # Check if skipping
     if update.message.text == "⏩ O'tkazib yuborish":
+        logger.info(f"User {user_id} skipped editing location")
         await update.message.reply_text(
             "Lokatsiya tahrirlash o'tkazib yuborildi.",
             reply_markup=get_admin_keyboard()
         )
         return MAIN
     
-    # Process location if provided
     if update.message.location:
         location = update.message.location
+        logger.info(f"User {user_id} provided new location: {location.latitude}, {location.longitude}")
         
         conn = sqlite3.connect('restaurants.db')
         cursor = conn.cursor()
@@ -607,7 +612,7 @@ async def edit_restaurant_location(update: Update, context: ContextTypes.DEFAULT
         
         return MAIN
     
-    # If we get here, something went wrong
+    logger.warning(f"Invalid input in EDITING_LOCATION by user {user_id}")
     await update.message.reply_text(
         "Noto'g'ri ma'lumot kiritildi. Iltimos, lokatsiya yuboring yoki tugmalardan birini bosing.",
         reply_markup=ReplyKeyboardMarkup([
@@ -623,6 +628,7 @@ async def edit_restaurant_location(update: Update, context: ContextTypes.DEFAULT
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
+    logger.info(f"Callback query by user {query.from_user.id}: {query.data}")
     
     data = query.data.split("_")
     
@@ -631,7 +637,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         restaurant_id = int(data[1])
         
         if action == "view":
-            # View restaurant details
             conn = sqlite3.connect('restaurants.db')
             cursor = conn.cursor()
             cursor.execute(
@@ -655,7 +660,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 await query.edit_message_text("Restoran topilmadi.")
         
         elif action == "location":
-            # Send restaurant location
             conn = sqlite3.connect('restaurants.db')
             cursor = conn.cursor()
             cursor.execute(
@@ -677,12 +681,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 await query.edit_message_text("Restoran topilmadi.")
         
         elif action == "delete":
-            # Delete restaurant
             if is_admin(query.from_user.id):
                 conn = sqlite3.connect('restaurants.db')
                 cursor = conn.cursor()
                 
-                # Get restaurant name
                 cursor.execute("SELECT name FROM restaurants WHERE id = ?", (restaurant_id,))
                 restaurant = cursor.fetchone()
                 
@@ -702,6 +704,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 # Handle user menu options
 async def handle_user_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
+    logger.info(f"User choice by user {update.effective_user.id}: {text}")
     
     if text == "🍽️ Restoranlar ro'yxati":
         await update.message.reply_text(
@@ -724,6 +727,7 @@ async def handle_user_choice(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 # Handle unexpected location
 async def handle_location(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    logger.info(f"Unexpected location received from user {update.effective_user.id}")
     await update.message.reply_text(
         "Iltimos, avval biror amalni tanlang.",
         reply_markup=get_user_keyboard()
@@ -742,6 +746,7 @@ def main():
         entry_points=[CommandHandler("start", start), CommandHandler("admin", admin)],
         states={
             MAIN: [
+                CommandHandler("admin", admin),  # Ensure /admin is always accessible
                 MessageHandler(filters.Regex("^➕ Restoran qo'shish$|^✏️ Restoranni tahrirlash$|^🗑️ Restoranni o'chirish$|^🔙 Orqaga qaytish$"), handle_admin_choice),
                 MessageHandler(filters.Regex("^🍽️ Restoranlar ro'yxati$|^ℹ️ Bot haqida$|^📞 Bog'lanish$"), handle_user_choice),
                 CallbackQueryHandler(handle_callback),
@@ -762,6 +767,7 @@ def main():
             ],
         },
         fallbacks=[CommandHandler("start", start)],
+        per_message=True  # Ensure callback queries are tracked
     )
     
     application.add_handler(conv_handler)
@@ -771,4 +777,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
