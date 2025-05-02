@@ -106,19 +106,13 @@ def get_restaurants_for_deletion():
 
 # Start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    user_id = update.effective_user.id
-    
-    if is_admin(user_id):
-        await update.message.reply_text(
-            "Admin panel. Kerakli amalni tanlang:",
-            reply_markup=get_admin_keyboard()
-        )
-    else:
-        await update.message.reply_text(
-            "Assalomu alaykum! Restoranlar botiga xush kelibsiz. "
-            "Bu botdan foydalanib siz restoranlar haqida ma'lumot olishingiz mumkin.",
-            reply_markup=get_user_keyboard()
-        )
+    await update.message.reply_text(
+        "Assalomu alaykum! Restoranlar botiga xush kelibsiz.\n\n"
+        "Bu botdan foydalanib siz restoranlar haqida ma'lumot olishingiz mumkin. "
+        "Restoranlar ro'yxatini ko'rish uchun '🍽️ Restoranlar ro'yxati' tugmasini bosing.\n\n"
+        "Admin bo'lsangiz /admin buyrug'ini yuborib admin panelga kirishingiz mumkin.",
+        reply_markup=get_user_keyboard()
+    )
     
     return MAIN
 
@@ -132,7 +126,11 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             reply_markup=get_admin_keyboard()
         )
     else:
-        await update.message.reply_text("Sizda admin huquqlari yo'q.")
+        await update.message.reply_text(
+            "Sizda admin huquqlari yo'q.\n\n"
+            "Admin huquqlarini olish uchun bot administratori bilan bog'laning.",
+            reply_markup=get_user_keyboard()
+        )
     
     return MAIN
 
@@ -146,10 +144,33 @@ async def handle_admin_choice(update: Update, context: ContextTypes.DEFAULT_TYPE
         return ConversationHandler.END
     
     if text == "➕ Restoran qo'shish":
-        await update.message.reply_text("Restoran nomini kiriting:")
+        # Add back button to keyboard
+        keyboard = [
+            [KeyboardButton("🔙 Orqaga qaytish")]
+        ]
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        
+        await update.message.reply_text(
+            "Restoran nomini kiriting: (yoki '🔙 Orqaga qaytish' tugmasini bosing)",
+            reply_markup=reply_markup
+        )
         return ADDING_NAME
     
     elif text == "✏️ Restoranni tahrirlash":
+        # Check if there are any restaurants
+        conn = sqlite3.connect('restaurants.db')
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM restaurants")
+        count = cursor.fetchone()[0]
+        conn.close()
+        
+        if count == 0:
+            await update.message.reply_text(
+                "Hozircha hech qanday restoran mavjud emas. Avval restoran qo'shing.",
+                reply_markup=get_admin_keyboard()
+            )
+            return MAIN
+        
         await update.message.reply_text(
             "Tahrirlash uchun restoranni tanlang:",
             reply_markup=get_restaurants_keyboard(for_editing=True)
@@ -157,6 +178,20 @@ async def handle_admin_choice(update: Update, context: ContextTypes.DEFAULT_TYPE
         return EDITING_SELECT
     
     elif text == "🗑️ Restoranni o'chirish":
+        # Check if there are any restaurants
+        conn = sqlite3.connect('restaurants.db')
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM restaurants")
+        count = cursor.fetchone()[0]
+        conn.close()
+        
+        if count == 0:
+            await update.message.reply_text(
+                "Hozircha hech qanday restoran mavjud emas. Avval restoran qo'shing.",
+                reply_markup=get_admin_keyboard()
+            )
+            return MAIN
+        
         await update.message.reply_text(
             "O'chirish uchun restoranni tanlang:",
             reply_markup=get_restaurants_for_deletion()
@@ -174,57 +209,170 @@ async def handle_admin_choice(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 # Handle adding restaurant - name
 async def add_restaurant_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data['restaurant_name'] = update.message.text
-    await update.message.reply_text("Restoran haqida qisqacha ma'lumot kiriting:")
+    text = update.message.text
+    
+    if text == "🔙 Orqaga qaytish":
+        await update.message.reply_text(
+            "Restoranni qo'shish bekor qilindi.",
+            reply_markup=get_admin_keyboard()
+        )
+        return MAIN
+    
+    context.user_data['restaurant_name'] = text
+    
+    # Add back button to keyboard
+    keyboard = [
+        [KeyboardButton("🔙 Orqaga qaytish")]
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    
+    await update.message.reply_text(
+        "Restoran haqida qisqacha ma'lumot kiriting: (ixtiyoriy, yoki '🔙 Orqaga qaytish' tugmasini bosing)",
+        reply_markup=reply_markup
+    )
     return ADDING_DESCRIPTION
 
 # Handle adding restaurant - description
 async def add_restaurant_description(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data['restaurant_description'] = update.message.text
-    await update.message.reply_text("Restoran manzilini kiriting:")
+    text = update.message.text
+    
+    if text == "🔙 Orqaga qaytish":
+        await update.message.reply_text(
+            "Restoranni qo'shish bekor qilindi.",
+            reply_markup=get_admin_keyboard()
+        )
+        return MAIN
+    
+    context.user_data['restaurant_description'] = text
+    
+    # Add back button to keyboard
+    keyboard = [
+        [KeyboardButton("🔙 Orqaga qaytish")]
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    
+    await update.message.reply_text(
+        "Restoran manzilini kiriting: (yoki '🔙 Orqaga qaytish' tugmasini bosing)",
+        reply_markup=reply_markup
+    )
     return ADDING_ADDRESS
 
 # Handle adding restaurant - address
 async def add_restaurant_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data['restaurant_address'] = update.message.text
-    await update.message.reply_text(
-        "Restoran joylashuvini lokatsiya ko'rinishida yuboring:",
-        reply_markup=ReplyKeyboardMarkup(
-            [[KeyboardButton("📍 Lokatsiya yuborish", request_location=True)]],
-            resize_keyboard=True
+    text = update.message.text
+    
+    if text == "🔙 Orqaga qaytish":
+        await update.message.reply_text(
+            "Restoranni qo'shish bekor qilindi.",
+            reply_markup=get_admin_keyboard()
         )
+        return MAIN
+    
+    context.user_data['restaurant_address'] = text
+    
+    # Add skip and back buttons
+    keyboard = [
+        [KeyboardButton("📍 Lokatsiya yuborish", request_location=True)],
+        [KeyboardButton("⏩ O'tkazib yuborish")],
+        [KeyboardButton("🔙 Orqaga qaytish")]
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    
+    await update.message.reply_text(
+        "Restoran joylashuvini lokatsiya ko'rinishida yuboring: (ixtiyoriy, yoki '⏩ O'tkazib yuborish' tugmasini bosing)",
+        reply_markup=reply_markup
     )
     return ADDING_LOCATION
 
 # Handle adding restaurant - location
 async def add_restaurant_location(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    location = update.message.location
-    
-    # Save restaurant to database
-    conn = sqlite3.connect('restaurants.db')
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO restaurants (name, description, address, latitude, longitude) VALUES (?, ?, ?, ?, ?)",
-        (
-            context.user_data['restaurant_name'],
-            context.user_data['restaurant_description'],
-            context.user_data['restaurant_address'],
-            location.latitude,
-            location.longitude
+    # Check if user wants to go back
+    if update.message.text == "🔙 Orqaga qaytish":
+        await update.message.reply_text(
+            "Restoranni qo'shish bekor qilindi.",
+            reply_markup=get_admin_keyboard()
         )
-    )
-    conn.commit()
-    conn.close()
+        return MAIN
     
+    # Check if user wants to skip location
+    if update.message.text == "⏩ O'tkazib yuborish":
+        # Save restaurant to database without location
+        conn = sqlite3.connect('restaurants.db')
+        cursor = conn.cursor()
+        
+        # Default description and address if not provided
+        description = context.user_data.get('restaurant_description', '')
+        address = context.user_data.get('restaurant_address', '')
+        
+        cursor.execute(
+            "INSERT INTO restaurants (name, description, address, latitude, longitude) VALUES (?, ?, ?, ?, ?)",
+            (
+                context.user_data['restaurant_name'],
+                description,
+                address,
+                None,
+                None
+            )
+        )
+        conn.commit()
+        conn.close()
+        
+        await update.message.reply_text(
+            "Restoran muvaffaqiyatli qo'shildi!",
+            reply_markup=get_admin_keyboard()
+        )
+        
+        # Clear user data
+        context.user_data.clear()
+        
+        return MAIN
+    
+    # Process location if provided
+    if update.message.location:
+        location = update.message.location
+        
+        # Save restaurant to database
+        conn = sqlite3.connect('restaurants.db')
+        cursor = conn.cursor()
+        
+        # Default description and address if not provided
+        description = context.user_data.get('restaurant_description', '')
+        address = context.user_data.get('restaurant_address', '')
+        
+        cursor.execute(
+            "INSERT INTO restaurants (name, description, address, latitude, longitude) VALUES (?, ?, ?, ?, ?)",
+            (
+                context.user_data['restaurant_name'],
+                description,
+                address,
+                location.latitude,
+                location.longitude
+            )
+        )
+        conn.commit()
+        conn.close()
+        
+        await update.message.reply_text(
+            "Restoran muvaffaqiyatli qo'shildi!",
+            reply_markup=get_admin_keyboard()
+        )
+        
+        # Clear user data
+        context.user_data.clear()
+        
+        return MAIN
+    
+    # If we get here, something went wrong
     await update.message.reply_text(
-        "Restoran muvaffaqiyatli qo'shildi!",
-        reply_markup=get_admin_keyboard()
+        "Noto'g'ri ma'lumot kiritildi. Iltimos, lokatsiya yuboring yoki tugmalardan birini bosing.",
+        reply_markup=ReplyKeyboardMarkup([
+            [KeyboardButton("📍 Lokatsiya yuborish", request_location=True)],
+            [KeyboardButton("⏩ O'tkazib yuborish")],
+            [KeyboardButton("🔙 Orqaga qaytish")]
+        ], resize_keyboard=True)
     )
     
-    # Clear user data
-    context.user_data.clear()
-    
-    return MAIN
+    return ADDING_LOCATION
 
 # Handle editing restaurant selection
 async def edit_restaurant_select(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -277,24 +425,59 @@ async def edit_restaurant_field(update: Update, context: ContextTypes.DEFAULT_TY
     action = query.data.split("_")[1]
     
     if action == "name":
-        await query.edit_message_text(f"Joriy nom: {context.user_data['old_name']}\nYangi nomni kiriting:")
+        # Add back button
+        keyboard = [
+            [KeyboardButton("🔙 Orqaga qaytish")]
+        ]
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        
+        await query.message.reply_text(
+            f"Joriy nom: {context.user_data['old_name']}\n"
+            "Yangi nomni kiriting: (yoki '🔙 Orqaga qaytish' tugmasini bosing)",
+            reply_markup=reply_markup
+        )
         return EDITING_NAME
     
     elif action == "description":
-        await query.edit_message_text(f"Joriy tavsif: {context.user_data['old_description']}\nYangi tavsifni kiriting:")
+        # Add back button
+        keyboard = [
+            [KeyboardButton("🔙 Orqaga qaytish")]
+        ]
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        
+        await query.message.reply_text(
+            f"Joriy tavsif: {context.user_data['old_description']}\n"
+            "Yangi tavsifni kiriting: (yoki '🔙 Orqaga qaytish' tugmasini bosing)",
+            reply_markup=reply_markup
+        )
         return EDITING_DESCRIPTION
     
     elif action == "address":
-        await query.edit_message_text(f"Joriy manzil: {context.user_data['old_address']}\nYangi manzilni kiriting:")
+        # Add back button
+        keyboard = [
+            [KeyboardButton("🔙 Orqaga qaytish")]
+        ]
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        
+        await query.message.reply_text(
+            f"Joriy manzil: {context.user_data['old_address']}\n"
+            "Yangi manzilni kiriting: (yoki '🔙 Orqaga qaytish' tugmasini bosing)",
+            reply_markup=reply_markup
+        )
         return EDITING_ADDRESS
     
     elif action == "location":
+        # Add back button
+        keyboard = [
+            [KeyboardButton("📍 Lokatsiya yuborish", request_location=True)],
+            [KeyboardButton("⏩ O'tkazib yuborish")],
+            [KeyboardButton("🔙 Orqaga qaytish")]
+        ]
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        
         await query.message.reply_text(
-            "Yangi lokatsiyani yuboring:",
-            reply_markup=ReplyKeyboardMarkup(
-                [[KeyboardButton("📍 Lokatsiya yuborish", request_location=True)]],
-                resize_keyboard=True
-            )
+            "Yangi lokatsiyani yuboring: (ixtiyoriy, yoki '⏩ O'tkazib yuborish' tugmasini bosing)",
+            reply_markup=reply_markup
         )
         return EDITING_LOCATION
     
@@ -302,12 +485,22 @@ async def edit_restaurant_field(update: Update, context: ContextTypes.DEFAULT_TY
 
 # Handle editing restaurant - name
 async def edit_restaurant_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    new_name = update.message.text
+    text = update.message.text
+    
+    # Check if going back
+    if text == "🔙 Orqaga qaytish":
+        await update.message.reply_text(
+            "Tahrirlash bekor qilindi.",
+            reply_markup=get_admin_keyboard()
+        )
+        return MAIN
+    
+    # Update restaurant name
     restaurant_id = context.user_data['editing_restaurant_id']
     
     conn = sqlite3.connect('restaurants.db')
     cursor = conn.cursor()
-    cursor.execute("UPDATE restaurants SET name = ? WHERE id = ?", (new_name, restaurant_id))
+    cursor.execute("UPDATE restaurants SET name = ? WHERE id = ?", (text, restaurant_id))
     conn.commit()
     conn.close()
     
@@ -320,12 +513,22 @@ async def edit_restaurant_name(update: Update, context: ContextTypes.DEFAULT_TYP
 
 # Handle editing restaurant - description
 async def edit_restaurant_description(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    new_description = update.message.text
+    text = update.message.text
+    
+    # Check if going back
+    if text == "🔙 Orqaga qaytish":
+        await update.message.reply_text(
+            "Tahrirlash bekor qilindi.",
+            reply_markup=get_admin_keyboard()
+        )
+        return MAIN
+    
+    # Update restaurant description
     restaurant_id = context.user_data['editing_restaurant_id']
     
     conn = sqlite3.connect('restaurants.db')
     cursor = conn.cursor()
-    cursor.execute("UPDATE restaurants SET description = ? WHERE id = ?", (new_description, restaurant_id))
+    cursor.execute("UPDATE restaurants SET description = ? WHERE id = ?", (text, restaurant_id))
     conn.commit()
     conn.close()
     
@@ -338,12 +541,22 @@ async def edit_restaurant_description(update: Update, context: ContextTypes.DEFA
 
 # Handle editing restaurant - address
 async def edit_restaurant_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    new_address = update.message.text
+    text = update.message.text
+    
+    # Check if going back
+    if text == "🔙 Orqaga qaytish":
+        await update.message.reply_text(
+            "Tahrirlash bekor qilindi.",
+            reply_markup=get_admin_keyboard()
+        )
+        return MAIN
+    
+    # Update restaurant address
     restaurant_id = context.user_data['editing_restaurant_id']
     
     conn = sqlite3.connect('restaurants.db')
     cursor = conn.cursor()
-    cursor.execute("UPDATE restaurants SET address = ? WHERE id = ?", (new_address, restaurant_id))
+    cursor.execute("UPDATE restaurants SET address = ? WHERE id = ?", (text, restaurant_id))
     conn.commit()
     conn.close()
     
@@ -356,24 +569,49 @@ async def edit_restaurant_address(update: Update, context: ContextTypes.DEFAULT_
 
 # Handle editing restaurant - location
 async def edit_restaurant_location(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    location = update.message.location
     restaurant_id = context.user_data['editing_restaurant_id']
     
-    conn = sqlite3.connect('restaurants.db')
-    cursor = conn.cursor()
-    cursor.execute(
-        "UPDATE restaurants SET latitude = ?, longitude = ? WHERE id = ?",
-        (location.latitude, location.longitude, restaurant_id)
-    )
-    conn.commit()
-    conn.close()
+    # Check if going back
+    if update.message.text == "🔙 Orqaga qaytish":
+        await update.message.reply_text(
+            "Tahrirlash bekor qilindi.",
+            reply_markup=get_admin_keyboard()
+        )
+        return MAIN
     
+    # Check if skipping
+    if update.message.text == "⏩ O'tkazib yuborish":
+        await update.message.reply_text(
+            "Lokatsiya tahrirlash o'tkazib yuborildi.",
+            reply_markup=get_admin_keyboard()
+        )
+        return MAIN
+    
+    # Process location if provided
+    if update.message.location:
+        location = update.message.location
+        
+        conn = sqlite3.connect('restaurants.db')
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE restaurants SET latitude = ?, longitude = ? WHERE id = ?",
+            (location.latitude, location.longitude, restaurant_id)
+        )
+        conn.commit()
+        conn.close()
+        
+        await update.message.reply_text(
+            "Restoran lokatsiyasi muvaffaqiyatli tahrirlandi!",
+            reply_markup=get_admin_keyboard()
+        )
+        
+        return MAIN
+    
+    # If we get here, something went wrong
     await update.message.reply_text(
-        "Restoran lokatsiyasi muvaffaqiyatli tahrirlandi!",
-        reply_markup=get_admin_keyboard()
-    )
-    
-    return MAIN
+        "Noto'g'ri ma'lumot kiritildi. Iltimos, lokatsiya yuboring yoki tugmalardan birini bosing.",
+        reply_markup=ReplyKeyboardMarkup([
+            [KeyboardButton("📍 Lokatsiya yuborish", request_location=
 
 # Handle callbacks (viewing/deleting restaurants)
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
