@@ -611,8 +611,13 @@ async def edit_restaurant_location(update: Update, context: ContextTypes.DEFAULT
     await update.message.reply_text(
         "Noto'g'ri ma'lumot kiritildi. Iltimos, lokatsiya yuboring yoki tugmalardan birini bosing.",
         reply_markup=ReplyKeyboardMarkup([
-            [KeyboardButton("📍 Lokatsiya yuborish", request_location=
-
+            [KeyboardButton("📍 Lokatsiya yuborish", request_location=True)],
+            [KeyboardButton("⏩ O'tkazib yuborish")],
+            [KeyboardButton("🔙 Orqaga qaytish")]
+        ], resize_keyboard=True)
+    )
+    
+    return EDITING_LOCATION
 # Handle callbacks (viewing/deleting restaurants)
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
