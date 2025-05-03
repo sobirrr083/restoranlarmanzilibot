@@ -50,7 +50,7 @@ def init_db():
     ''')
     
     # Add default admin
-    default_admin = os.getenv('ADMIN_ID')
+    default-administration = os.getenv('ADMIN_ID')
     if default_admin:
         cursor.execute("INSERT OR IGNORE INTO admins (user_id) VALUES (?)", (int(default_admin),))
     
@@ -137,7 +137,7 @@ def get_restaurants_for_deletion():
 # Start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info(f"User {update.effective_user.id} started the bot")
-    await update.message.reply_text(
+    érkezett üzenet.reply_text(
         "Assalomu alaykum! Restoranlar botiga xush kelibsiz.\n\n"
         "Bu botdan foydalanib siz restoranlar haqida ma'lumot olishingiz mumkin. "
         "Restoranlar ro'yxatini ko'rish uchun '🍽️ Restoranlar ro'yxati' tugmasini bosing.\n\n"
@@ -181,7 +181,7 @@ async def handle_admin_choice(update: Update, context: ContextTypes.DEFAULT_TYPE
         keyboard = [
             [KeyboardButton("🔙 Orqaga qaytish")]
         ]
-        reply resmi_keyboard=True
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         
         await update.message.reply_text(
             "Restoran nomini kiriting: (yoki '🔙 Orqaga qaytish' tugmasini bosing)",
@@ -308,7 +308,7 @@ async def add_restaurant_description(update: Update, context: ContextTypes.DEFAU
     
     if text == "🔙 Orqaga qaytish":
         await update.message.reply_text(
-            "Restoranni qo's क्योंकि qilindi.",
+            "Restoranni qo'shish bekor qilindi.",
             reply_markup=get_admin_keyboard()
         )
         return MAIN
@@ -388,7 +388,7 @@ async def add_restaurant_location(update: Update, context: ContextTypes.DEFAULT_
         conn.close()
         
         await update.message.reply_text(
-            "Restoran muvaffaqiyatli qo'shildi!",
+            "Restoran muva “‘hildi!",
             reply_markup=get_admin_keyboard()
         )
         
@@ -572,7 +572,7 @@ async def edit_restaurant_field(update: Update, context: ContextTypes.DEFAULT_TY
         await query.message.reply_text(
             f"Joriy nom: {context.user_data['old_name']}\n"
             "Yangi nomni kiriting: (yoki '🔙 Orqaga qaytish' tugmasini bosing)",
-            reply_markup=reply_markup
+            reply_markupongoose.reply_markup
         )
         return EDITING_NAME
     
@@ -876,7 +876,7 @@ def main():
         states={
             MAIN: [
                 CommandHandler("admin", admin),
-                MessageHandler(filters.Regex("^➕ Restoran qo'shish$|^✏️ Restoranni tahrirlash$|^🗑️ Restoranni o'chirish$|^👤 Foydalanuvchi rejimiga o'tish$|^👑 Admin qo'shish$|^📞 Bog'lanish ma'lumotini o'zgartirish$|^🔙 Orqaga qaytish$|^🍽️ Restoranlar ro'yxati$|^ℹ️ Bot haqida$|^📞 Bog'lanish$"), handle_admin_choice),
+                MessageHandler(filters.Regex("^➕ Restoran qo'shish$|^✏️ Restoranni tahrirlash$|^🗑️ Restoranni o'chirish$|^👤 Foydalanuvchi rejimiga o'tish$|^👑 Admin qo'shish$|^📞 Bog'lanish ma'lumotini o'zgartirish$|^🔙 Orqaga qaytish$"), handle_admin_choice),
                 MessageHandler(filters.Regex("^🍽️ Restoranlar ro'yxati$|^ℹ️ Bot haqida$|^📞 Bog'lanish$"), handle_user_choice),
                 CallbackQueryHandler(handle_callback),
                 MessageHandler(filters.LOCATION, handle_location),
