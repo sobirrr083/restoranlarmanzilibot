@@ -181,7 +181,7 @@ async def handle_admin_choice(update: Update, context: ContextTypes.DEFAULT_TYPE
         keyboard = [
             [KeyboardButton("🔙 Orqaga qaytish")]
         ]
-        reply resmi_keyboard=True)
+        reply resmi_keyboard=True
         
         await update.message.reply_text(
             "Restoran nomini kiriting: (yoki '🔙 Orqaga qaytish' tugmasini bosing)",
