@@ -5,6 +5,7 @@ import sqlite3
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters, ConversationHandler
 from telegram.error import Conflict
+import re
 
 # Load environment variables
 load_dotenv()
@@ -20,6 +21,8 @@ logger = logging.getLogger(__name__)
 def init_db():
     conn = sqlite3.connect('restaurants.db')
     cursor = conn.cursor()
+    
+    # Restaurants table
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS restaurants (
         id INTEGER PRIMARY KEY,
@@ -31,9 +34,18 @@ def init_db():
     )
     ''')
     
+    # Admins table
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS admins (
         user_id INTEGER PRIMARY KEY
+    )
+    ''')
+    
+    # Contact info table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS contact_info (
+        id INTEGER PRIMARY KEY,
+        contact_text TEXT NOT NULL
     )
     ''')
     
@@ -42,12 +54,18 @@ def init_db():
     if default_admin:
         cursor.execute("INSERT OR IGNORE INTO admins (user_id) VALUES (?)", (int(default_admin),))
     
+    # Add default contact info
+    cursor.execute("SELECT COUNT(*) FROM contact_info")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("INSERT INTO contact_info (contact_text) VALUES (?)", ("Savollar va takliflar uchun: @admin",))
+    
     conn.commit()
     conn.close()
 
 # States for conversation handlers
 MAIN, ADDING_NAME, ADDING_DESCRIPTION, ADDING_ADDRESS, ADDING_LOCATION = range(5)
 EDITING_SELECT, EDITING_NAME, EDITING_DESCRIPTION, EDITING_ADDRESS, EDITING_LOCATION = range(5, 10)
+ADDING_ADMIN, CHANGING_CONTACT = range(10, 12)
 
 # Check if user is admin
 def is_admin(user_id):
@@ -58,11 +76,21 @@ def is_admin(user_id):
     conn.close()
     return result is not None
 
+# Get contact info
+def get_contact_info():
+    conn = sqlite3.connect('restaurants.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT contact_text FROM contact_info WHERE id = 1")
+    result = cursor.fetchone()
+    conn.close()
+    return result[0] if result else "Savollar va takliflar uchun: @admin"
+
 # Admin panel keyboard
 def get_admin_keyboard():
     keyboard = [
         [KeyboardButton("➕ Restoran qo'shish"), KeyboardButton("✏️ Restoranni tahrirlash")],
         [KeyboardButton("🗑️ Restoranni o'chirish"), KeyboardButton("👤 Foydalanuvchi rejimiga o'tish")],
+        [KeyboardButton("👑 Admin qo'shish"), KeyboardButton("📞 Bog'lanish ma'lumotini o'zgartirish")],
         [KeyboardButton("🔙 Orqaga qaytish")],
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -207,6 +235,32 @@ async def handle_admin_choice(update: Update, context: ContextTypes.DEFAULT_TYPE
             reply_markup=get_user_keyboard()
         )
         return MAIN
+    
+    elif text == "👑 Admin qo'shish":
+        keyboard = [
+            [KeyboardButton("🔙 Orqaga qaytish")]
+        ]
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        
+        await update.message.reply_text(
+            "Yangi adminning Telegram ID'sini kiriting (raqamlar, masalan: 123456789):",
+            reply_markup=reply_markup
+        )
+        return ADDING_ADMIN
+    
+    elif text == "📞 Bog'lanish ma'lumotini o'zgartirish":
+        current_contact = get_contact_info()
+        keyboard = [
+            [KeyboardButton("🔙 Orqaga qaytish")]
+        ]
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        
+        await update.message.reply_text(
+            f"Joriy bog'lanish ma'lumoti: {current_contact}\n\n"
+            "Yangi bog'lanish ma'lumotini kiriting (masalan: Telegram @username yoki telefon raqami):",
+            reply_markup=reply_markup
+        )
+        return CHANGING_CONTACT
     
     elif text == "🔙 Orqaga qaytish":
         await update.message.reply_text(
@@ -383,6 +437,80 @@ async def add_restaurant_location(update: Update, context: ContextTypes.DEFAULT_
     )
     
     return ADDING_LOCATION
+
+# Handle adding admin
+async def add_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user_id = update.effective_user.id
+    text = update.message.text
+    logger.info(f"Adding admin by user {user_id}: {text}")
+    
+    if text == "🔙 Orqaga qaytish":
+        await update.message.reply_text(
+            "Admin qo'shish bekor qilindi.",
+            reply_markup=get_admin_keyboard()
+        )
+        return MAIN
+    
+    # Validate Telegram ID (must be numeric)
+    if not re.match(r'^\d+$', text):
+        await update.message.reply_text(
+            "Iltimos, faqat raqamlardan iborat Telegram ID kiriting (masalan: 123456789):",
+            reply_markup=ReplyKeyboardMarkup([[KeyboardButton("🔙 Orqaga qaytish")]], resize_keyboard=True)
+        )
+        return ADDING_ADMIN
+    
+    new_admin_id = int(text)
+    
+    # Check if already admin
+    if is_admin(new_admin_id):
+        await update.message.reply_text(
+            "Bu foydalanuvchi allaqachon admin!",
+            reply_markup=get_admin_keyboard()
+        )
+        return MAIN
+    
+    # Add new admin
+    conn = sqlite3.connect('restaurants.db')
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR IGNORE INTO admins (user_id) VALUES (?)", (new_admin_id,))
+    conn.commit()
+    conn.close()
+    
+    await update.message.reply_text(
+        f"ID {new_admin_id} foydalanuvchisi admin sifatida qo'shildi!",
+        reply_markup=get_admin_keyboard()
+    )
+    
+    return MAIN
+
+# Handle changing contact info
+async def change_contact_info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user_id = update.effective_user.id
+    text = update.message.text
+    logger.info(f"Changing contact info by user {user_id}: {text}")
+    
+    if text == "🔙 Orqaga qaytish":
+        await update.message.reply_text(
+            "Bog'lanish ma'lumotini o'zgartirish bekor qilindi.",
+            reply_markup=get_admin_keyboard()
+        )
+        return MAIN
+    
+    # Update contact info
+    conn = sqlite3.connect('restaurants.db')
+    cursor = conn.cursor()
+    cursor.execute("UPDATE contact_info SET contact_text = ? WHERE id = 1", (text,))
+    if cursor.rowcount == 0:  # If no rows updated, insert new
+        cursor.execute("INSERT INTO contact_info (id, contact_text) VALUES (1, ?)", (text,))
+    conn.commit()
+    conn.close()
+    
+    await update.message.reply_text(
+        "Bog'lanish ma'lumoti muvaffaqiyatli o'zgartirildi!",
+        reply_markup=get_admin_keyboard()
+    )
+    
+    return MAIN
 
 # Handle editing restaurant selection
 async def edit_restaurant_select(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -596,7 +724,7 @@ async def edit_restaurant_location(update: Update, context: ContextTypes.DEFAULT
     
     if update.message.location:
         location = update.message.location
-        logger.info(f"User {user_id} provided new location: {location.latitude}, {location.longitude}")
+        logger.info(f"User {user_id} provided new location: {location.latitude}, {location.longitude]')
         
         conn = sqlite3.connect('restaurants.db')
         cursor = conn.cursor()
@@ -721,9 +849,8 @@ async def handle_user_choice(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
     
     elif text == "📞 Bog'lanish":
-        await update.message.reply_text(
-            "Savollar va takliflar uchun: @admin"
-        )
+        contact_info = get_contact_info()
+        await update.message.reply_text(contact_info)
     
     return MAIN
 
@@ -748,9 +875,9 @@ def main():
         entry_points=[CommandHandler("start", start), CommandHandler("admin", admin)],
         states={
             MAIN: [
-                CommandHandler("admin", admin),  # Ensure /admin is always accessible
-                MessageHandler(filters.Regex("^➕ Restoran qo'shish$|^✏️ Restoranni tahrirlash$|^🗑️ Restoranni o'chirish$|^👤 Foydalanuvchi rejimiga o'tish$|^🔙 Orqaga qaytish$"), handle_admin_choice),
-                MessageHandler(filters.Regex("^🍽️ Restoranlar ro'yxati$|^ℹ️ Bot haqida$|^📞 Bog'lanish$"), handle_user_choice),
+                CommandHandler("admin", admin),
+                MessageHandler(filters.Regex("^➕ Restoran qo'shish$|^✏️ Restoranni tahrirlash$|^🗑️ Restoranni o'chirish$|^👤 Foydalanuvchi rejimiga o'tish$|^👑 Admin qo'shish$|^📞 Bog'lanish ma'lumotini o'zgartirish$|^🔙 Orqaga_snippr
+                |^🍽️ Restoranlar ro'yxati$|^ℹ️ Bot haqida$|^📞 Bog'lanish$"), handle_user_choice),
                 CallbackQueryHandler(handle_callback),
                 MessageHandler(filters.LOCATION, handle_location),
             ],
@@ -767,9 +894,10 @@ def main():
             EDITING_LOCATION: [
                 MessageHandler(filters.LOCATION | filters.Regex("^⏩ O'tkazib yuborish$|^🔙 Orqaga qaytish$"), edit_restaurant_location)
             ],
+            ADDING_ADMIN: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_admin)],
+            CHANGING_CONTACT: [MessageHandler(filters.TEXT & ~filters.COMMAND, change_contact_info)],
         },
         fallbacks=[CommandHandler("start", start)]
-        # Removed per_message=True to resolve PTBUserWarning
     )
     
     application.add_handler(conv_handler)
@@ -778,8 +906,11 @@ def main():
     try:
         application.run_polling(drop_pending_updates=True)
     except Conflict as e:
-        logger.error(f"Conflict error during polling: {e}")
-        print("Error: Another instance of the bot might be running or a webhook is active. Please ensure no other instances are running and try again.")
+        logger.error(f"Conflict error: {e}")
+        print("Error: Another instance of the bot is running or a webhook is active.")
+        print("1. Stop any other bot instances.")
+        print("2. Delete webhook using: curl -X POST https://api.telegram.org/bot{TOKEN}/deleteWebhook")
+        print("3. Try running the bot again.")
         return
 
 if __name__ == "__main__":
