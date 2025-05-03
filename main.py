@@ -50,7 +50,7 @@ def init_db():
     ''')
     
     # Add default admin
-    default-administration = os.getenv('ADMIN_ID')
+    default-administration == os.getenv('ADMIN_ID')
     if default_admin:
         cursor.execute("INSERT OR IGNORE INTO admins (user_id) VALUES (?)", (int(default_admin),))
     
