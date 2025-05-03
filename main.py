@@ -181,7 +181,7 @@ async def handle_admin_choice(update: Update, context: ContextTypes.DEFAULT_TYPE
         keyboard = [
             [KeyboardButton("🔙 Orqaga qaytish")]
         ]
-        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        reply resmi_keyboard=True)
         
         await update.message.reply_text(
             "Restoran nomini kiriting: (yoki '🔙 Orqaga qaytish' tugmasini bosing)",
@@ -308,7 +308,7 @@ async def add_restaurant_description(update: Update, context: ContextTypes.DEFAU
     
     if text == "🔙 Orqaga qaytish":
         await update.message.reply_text(
-            "Restoranni qo'shish bekor qilindi.",
+            "Restoranni qo's क्योंकि qilindi.",
             reply_markup=get_admin_keyboard()
         )
         return MAIN
@@ -724,7 +724,7 @@ async def edit_restaurant_location(update: Update, context: ContextTypes.DEFAULT
     
     if update.message.location:
         location = update.message.location
-        logger.info(f"User {user_id} provided new location: {location.latitude}, {location.longitude]')
+        logger.info(f"User {user_id} provided new location: {location.latitude}, {location.longitude}")
         
         conn = sqlite3.connect('restaurants.db')
         cursor = conn.cursor()
@@ -876,8 +876,8 @@ def main():
         states={
             MAIN: [
                 CommandHandler("admin", admin),
-                MessageHandler(filters.Regex("^➕ Restoran qo'shish$|^✏️ Restoranni tahrirlash$|^🗑️ Restoranni o'chirish$|^👤 Foydalanuvchi rejimiga o'tish$|^👑 Admin qo'shish$|^📞 Bog'lanish ma'lumotini o'zgartirish$|^🔙 Orqaga_snippr
-                |^🍽️ Restoranlar ro'yxati$|^ℹ️ Bot haqida$|^📞 Bog'lanish$"), handle_user_choice),
+                MessageHandler(filters.Regex("^➕ Restoran qo'shish$|^✏️ Restoranni tahrirlash$|^🗑️ Restoranni o'chirish$|^👤 Foydalanuvchi rejimiga o'tish$|^👑 Admin qo'shish$|^📞 Bog'lanish ma'lumotini o'zgartirish$|^🔙 Orqaga qaytish$|^🍽️ Restoranlar ro'yxati$|^ℹ️ Bot haqida$|^📞 Bog'lanish$"), handle_admin_choice),
+                MessageHandler(filters.Regex("^🍽️ Restoranlar ro'yxati$|^ℹ️ Bot haqida$|^📞 Bog'lanish$"), handle_user_choice),
                 CallbackQueryHandler(handle_callback),
                 MessageHandler(filters.LOCATION, handle_location),
             ],
