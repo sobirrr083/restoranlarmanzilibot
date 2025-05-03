@@ -137,7 +137,7 @@ def get_restaurants_for_deletion():
 # Start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info(f"User {update.effective_user.id} started the bot")
-  await update.message.reply_text(
+  await update.reply_text(
         "Assalomu alaykum! Restoranlar botiga xush kelibsiz.\n\n"
         "Bu botdan foydalanib siz restoranlar haqida ma'lumot olishingiz mumkin. "
         "Restoranlar ro'yxatini ko'rish uchun '🍽️ Restoranlar ro'yxati' tugmasini bosing.\n\n"
