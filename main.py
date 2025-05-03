@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import sqlite3
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters, ConversationHandler
+from telegram.error import Conflict
 
 # Load environment variables
 load_dotenv()
@@ -61,7 +62,8 @@ def is_admin(user_id):
 def get_admin_keyboard():
     keyboard = [
         [KeyboardButton("➕ Restoran qo'shish"), KeyboardButton("✏️ Restoranni tahrirlash")],
-        [KeyboardButton("🗑️ Restoranni o'chirish"), KeyboardButton("🔙 Orqaga qaytish")],
+        [KeyboardButton("🗑️ Restoranni o'chirish"), KeyboardButton("👤 Foydalanuvchi rejimiga o'tish")],
+        [KeyboardButton("🔙 Orqaga qaytish")],
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -148,7 +150,6 @@ async def handle_admin_choice(update: Update, context: ContextTypes.DEFAULT_TYPE
         return ConversationHandler.END
     
     if text == "➕ Restoran qo'shish":
-        # Add back button to keyboard
         keyboard = [
             [KeyboardButton("🔙 Orqaga qaytish")]
         ]
@@ -161,7 +162,6 @@ async def handle_admin_choice(update: Update, context: ContextTypes.DEFAULT_TYPE
         return ADDING_NAME
     
     elif text == "✏️ Restoranni tahrirlash":
-        # Check if there are any restaurants
         conn = sqlite3.connect('restaurants.db')
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM restaurants")
@@ -182,7 +182,6 @@ async def handle_admin_choice(update: Update, context: ContextTypes.DEFAULT_TYPE
         return EDITING_SELECT
     
     elif text == "🗑️ Restoranni o'chirish":
-        # Check if there are any restaurants
         conn = sqlite3.connect('restaurants.db')
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM restaurants")
@@ -199,6 +198,13 @@ async def handle_admin_choice(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text(
             "O'chirish uchun restoranni tanlang:",
             reply_markup=get_restaurants_for_deletion()
+        )
+        return MAIN
+    
+    elif text == "👤 Foydalanuvchi rejimiga o'tish":
+        await update.message.reply_text(
+            "Foydalanuvchi rejimiga o'tdingiz.",
+            reply_markup=get_user_keyboard()
         )
         return MAIN
     
@@ -230,7 +236,6 @@ async def add_restaurant_name(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     context.user_data['restaurant_name'] = text
     
-    # Add back button to keyboard
     keyboard = [
         [KeyboardButton("🔙 Orqaga qaytish")]
     ]
@@ -256,7 +261,6 @@ async def add_restaurant_description(update: Update, context: ContextTypes.DEFAU
     
     context.user_data['restaurant_description'] = text
     
-    # Add back button to keyboard
     keyboard = [
         [KeyboardButton("🔙 Orqaga qaytish")]
     ]
@@ -282,7 +286,6 @@ async def add_restaurant_address(update: Update, context: ContextTypes.DEFAULT_T
     
     context.user_data['restaurant_address'] = text
     
-    # Add skip and back buttons
     keyboard = [
         [KeyboardButton("📍 Lokatsiya yuborish", request_location=True)],
         [KeyboardButton("⏩ O'tkazib yuborish")],
@@ -311,7 +314,6 @@ async def add_restaurant_location(update: Update, context: ContextTypes.DEFAULT_
     
     if update.message.text == "⏩ O'tkazib yuborish":
         logger.info(f"User {user_id} skipped adding location")
-        # Save restaurant to database without location
         conn = sqlite3.connect('restaurants.db')
         cursor = conn.cursor()
         
@@ -747,7 +749,7 @@ def main():
         states={
             MAIN: [
                 CommandHandler("admin", admin),  # Ensure /admin is always accessible
-                MessageHandler(filters.Regex("^➕ Restoran qo'shish$|^✏️ Restoranni tahrirlash$|^🗑️ Restoranni o'chirish$|^🔙 Orqaga qaytish$"), handle_admin_choice),
+                MessageHandler(filters.Regex("^➕ Restoran qo'shish$|^✏️ Restoranni tahrirlash$|^🗑️ Restoranni o'chirish$|^👤 Foydalanuvchi rejimiga o'tish$|^🔙 Orqaga qaytish$"), handle_admin_choice),
                 MessageHandler(filters.Regex("^🍽️ Restoranlar ro'yxati$|^ℹ️ Bot haqida$|^📞 Bog'lanish$"), handle_user_choice),
                 CallbackQueryHandler(handle_callback),
                 MessageHandler(filters.LOCATION, handle_location),
@@ -766,14 +768,19 @@ def main():
                 MessageHandler(filters.LOCATION | filters.Regex("^⏩ O'tkazib yuborish$|^🔙 Orqaga qaytish$"), edit_restaurant_location)
             ],
         },
-        fallbacks=[CommandHandler("start", start)],
-        per_message=True  # Ensure callback queries are tracked
+        fallbacks=[CommandHandler("start", start)]
+        # Removed per_message=True to resolve PTBUserWarning
     )
     
     application.add_handler(conv_handler)
     
-    # Start the bot
-    application.run_polling()
+    # Start the bot with webhook cleanup
+    try:
+        application.run_polling(drop_pending_updates=True)
+    except Conflict as e:
+        logger.error(f"Conflict error during polling: {e}")
+        print("Error: Another instance of the bot might be running or a webhook is active. Please ensure no other instances are running and try again.")
+        return
 
 if __name__ == "__main__":
     main()
