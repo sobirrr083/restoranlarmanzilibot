@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import sqlite3
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters, ConversationHandler
+from telegram.error import Conflict
 
 # Load environment variables
 load_dotenv()
@@ -767,14 +768,19 @@ def main():
                 MessageHandler(filters.LOCATION | filters.Regex("^⏩ O'tkazib yuborish$|^🔙 Orqaga qaytish$"), edit_restaurant_location)
             ],
         },
-        fallbacks=[CommandHandler("start", start)],
-        per_message=True  # Ensure callback queries are tracked
+        fallbacks=[CommandHandler("start", start)]
+        # Removed per_message=True to resolve PTBUserWarning
     )
     
     application.add_handler(conv_handler)
     
-    # Start the bot
-    application.run_polling()
+    # Start the bot with webhook cleanup
+    try:
+        application.run_polling(drop_pending_updates=True)
+    except Conflict as e:
+        logger.error(f"Conflict error during polling: {e}")
+        print("Error: Another instance of the bot might be running or a webhook is active. Please ensure no other instances are running and try again.")
+        return
 
 if __name__ == "__main__":
     main()
